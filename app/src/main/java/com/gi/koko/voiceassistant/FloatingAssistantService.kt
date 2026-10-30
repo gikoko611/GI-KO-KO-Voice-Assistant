@@ -21,6 +21,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.*
 import androidx.core.app.NotificationCompat
 import java.util.Locale
+import java.io.File
 import kotlin.math.abs
 
 class FloatingAssistantService : Service() {
@@ -300,8 +301,31 @@ class FloatingAssistantService : Service() {
             statusView?.text = "Microphone permission ကို Main App မှာ အရင်ခွင့်ပြုပါ"
             return
         }
+        val whisperPath = getSharedPreferences("gi_voice_prefs", MODE_PRIVATE)
+            .getString("whisper_model_path", null)
+        if (!whisperPath.isNullOrBlank() && File(whisperPath).exists()) {
+            statusView?.text = "Whisper Myanmar • 10 seconds အသံဖမ်းနေသည်…"
+            Thread {
+                val transcript = runCatching {
+                    runBlocking {
+                        val samples = WhisperAudioRecorder.record(applicationContext, 10_000)
+                        NativeWhisperBridge.transcribe(whisperPath, samples)
+                    }
+                }
+                Handler(Looper.getMainLooper()).post {
+                    val spoken = transcript.getOrNull().orEmpty()
+                    if (spoken.isNotBlank()) {
+                        input?.setText(spoken)
+                        statusView?.text = "မြန်မာ Offline Voice ပြီးပါပြီ • Send ကိုနှိပ်ပါ"
+                    } else {
+                        statusView?.text = "Whisper STT မအောင်မြင်ပါ: ${transcript.exceptionOrNull()?.message ?: "အသံမရပါ"}"
+                    }
+                }
+            }.start()
+            return
+        }
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            statusView?.text = "Speech recognition service မရှိပါ"
+            statusView?.text = "Whisper Model ကို Main App မှာ Download လုပ်ပါ"
             return
         }
         try {
