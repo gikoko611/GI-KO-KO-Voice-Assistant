@@ -24,8 +24,23 @@ endif()
 
 add_subdirectory("${LLAMA_CPP_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/llama.cpp")
 
+set(WHISPER_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(WHISPER_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(WHISPER_BUILD_SERVER OFF CACHE BOOL "" FORCE)
+set(WHISPER_CURL OFF CACHE BOOL "" FORCE)
+set(WHISPER_SDL2 OFF CACHE BOOL "" FORCE)
+set(WHISPER_CPP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../third_party/whisper.cpp")
+if(NOT EXISTS "${WHISPER_CPP_DIR}/CMakeLists.txt")
+    message(FATAL_ERROR "whisper.cpp source missing from third_party/whisper.cpp")
+endif()
+add_subdirectory("${WHISPER_CPP_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/whisper.cpp")
+
 add_library(gi_llama SHARED gi_llama.cpp)
 target_include_directories(gi_llama PRIVATE "${LLAMA_CPP_DIR}/include")
 find_library(android-lib android)
 find_library(log-lib log)
 target_link_libraries(gi_llama PRIVATE llama ${android-lib} ${log-lib})
+
+add_library(gi_whisper SHARED gi_whisper.cpp)
+target_include_directories(gi_whisper PRIVATE "${WHISPER_CPP_DIR}/include")
+target_link_libraries(gi_whisper PRIVATE whisper ${android-lib} ${log-lib})
