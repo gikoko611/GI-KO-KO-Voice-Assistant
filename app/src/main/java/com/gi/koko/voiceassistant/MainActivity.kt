@@ -27,6 +27,8 @@ import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,6 +80,7 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
     var status by remember { mutableStateOf("Ready • Offline-first interface") }
     var selectedModel by remember { mutableStateOf(prefs.getString("model_uri", null)) }
     var pendingAction by remember { mutableStateOf<String?>(null) }
+    var toolRequest by remember { mutableStateOf("calc: 12 * (3 + 4)") }
     var showHistory by remember { mutableStateOf(false) }
     var messages by remember {
         mutableStateOf(listOf(ChatLine(false, "မင်္ဂလာပါ။ G.I KO KO Voice Assistant ပါ။\nModel ကို import လုပ်ပြီး voice သို့မဟုတ် text နဲ့ စတင်နိုင်ပါတယ်။")))
@@ -153,6 +156,27 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
         recognizer.startListening(intent)
     }
 
+    fun runConfirmedTool(action: String) {
+        try {
+            val result = when {
+                action.startsWith("calc:") -> "Result: ${SafeToolEngine.calculate(action.removePrefix("calc:").trim())}"
+                action.startsWith("open:") -> SafeToolEngine.openApp(context, action.removePrefix("open:").trim())
+                action.startsWith("termux:") -> {
+                    SafeToolEngine.runTermuxAllowlisted(context, action.removePrefix("termux:").trim())
+                    "Termux command sent. Termux must allow external app commands."
+                }
+                else -> "Unsupported tool request"
+            }
+            messages = messages + ChatLine(false, result)
+            status = "Tool completed"
+            speak(result)
+        } catch (error: Exception) {
+            val result = "Tool blocked: ${error.message ?: "unknown error"}"
+            messages = messages + ChatLine(false, result)
+            status = "Tool failed safely"
+        }
+    }
+
     fun sendMessage() {
         val text = prompt.trim()
         if (text.isEmpty()) return
@@ -225,6 +249,24 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
                     AssistChip(onClick = { filePicker.launch(arrayOf("*/*")) }, label = { Text("Attach file") })
                 }
 
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = toolRequest, onValueChange = { toolRequest = it },
+                        modifier = Modifier.weight(1f), singleLine = true,
+                        label = { Text("Safe tool request") },
+                        placeholder = { Text("calc: 2+2 | open: package.name | termux: pwd") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Gold, unfocusedBorderColor = Muted,
+                            focusedTextColor = Color.White, unfocusedTextColor = Color.White
+                        )
+                    )
+                    Button(onClick = { pendingAction = toolRequest.trim() },
+                        colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Dark)) {
+                        Text("Run")
+                    }
+                }
+                Text("Allowed: calculator • launch app • Termux pwd / ls / python --version",
+                    color = Muted, fontSize = 10.sp)
                 Text("CONVERSATION", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
                 LazyColumn(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -265,6 +307,24 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
                 Text("Powered By I KO KO", Modifier.align(Alignment.CenterHorizontally).padding(bottom = 8.dp),
                     color = Gold, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
             }
+        }
+        if (pendingAction != null) {
+            AlertDialog(
+                onDismissRequest = { pendingAction = null },
+                title = { Text("Confirm tool execution", color = Gold) },
+                text = { Text("Run this request?\\n\\n${pendingAction}\\n\\nOnly the built-in allowlisted actions are accepted.", color = Color.White) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        val action = pendingAction.orEmpty()
+                        pendingAction = null
+                        runConfirmedTool(action)
+                    }) { Text("CONFIRM", color = Gold) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingAction = null }) { Text("CANCEL", color = Muted) }
+                },
+                containerColor = Panel
+            )
         }
     }
 }
