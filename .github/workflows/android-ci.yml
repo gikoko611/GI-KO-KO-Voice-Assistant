@@ -36,6 +36,15 @@ jobs:
         with:
           gradle-version: '8.7'
 
+      - name: Add G.I KO KO launcher icon
+        run: |
+          set -e
+          for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            mkdir -p "app/src/main/res/mipmap-$density"
+            curl -fL "https://raw.githubusercontent.com/gikoko611/G-Ikoko-Manager/main/app/src/main/res/mipmap-$density/ic_launcher.png" \\
+              -o "app/src/main/res/mipmap-$density/ic_launcher.png"
+          done
+
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
 
