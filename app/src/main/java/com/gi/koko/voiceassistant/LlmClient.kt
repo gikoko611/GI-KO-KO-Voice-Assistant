@@ -83,6 +83,34 @@ object LlmClient {
         }
     }
 
+
+    suspend fun testConnection(context: Context): String = withContext(Dispatchers.IO) {
+        val (base, model, key) = loadConfig(context)
+        require(key.isNotBlank()) { "API Key မထည့်ရသေးပါ" }
+        require(model.isNotBlank()) { "Model ID မထည့်ရသေးပါ" }
+        val connection = (URL(base.trimEnd('/') + "/models").openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 15000
+            readTimeout = 20000
+            setRequestProperty("Authorization", "Bearer $key")
+            setRequestProperty("Accept", "application/json")
+        }
+        try {
+            val code = connection.responseCode
+            val raw = (if (code in 200..299) connection.inputStream else connection.errorStream)
+                ?.bufferedReader()?.use { it.readText() }.orEmpty()
+            if (code !in 200..299) {
+                val message = runCatching { JSONObject(raw).optJSONObject("error")?.optString("message") }.getOrNull()
+                throw IllegalStateException("HTTP $code: ${message ?: raw.take(180)}")
+            }
+            val data = JSONObject(raw).optJSONArray("data")
+            val count = data?.length() ?: 0
+            val modelFound = (0 until count).any { data?.optJSONObject(it)?.optString("id") == model }
+            if (count > 0 && !modelFound) "Connection OK • ${count} models listed • selected model ID not in list (check exact ID)"
+            else "Connection OK • ${count} models listed • selected model: $model"
+        } finally { connection.disconnect() }
+    }
+
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (store.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
