@@ -13,7 +13,7 @@ Native Android voice assistant for Redmi 9A / Android 10 with an ARMv7 (armeabi-
 - Local conversation history (up to 200 messages) with clear-history control.
 - On-device Burmese speech-to-text using whisper.cpp and the multilingual Whisper Tiny model. Download the model once in the app; the main-screen microphone then works offline.
 - English (US) Android Text-to-Speech output.
-- Expanded, scrollable conversation area and floating assistant.
+- Expanded, scrollable conversation area and floating assistant; the floating microphone also uses the downloaded Whisper model.
 - ARMv7 debug and signed release APKs built by GitHub Actions.
 
 ## Offline model guidance
