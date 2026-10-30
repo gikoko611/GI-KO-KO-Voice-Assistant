@@ -216,10 +216,15 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
         status = "Connecting to LLM…"
         scope.launch {
             try {
-                val answer = LlmClient.reply(context, priorHistory, text)
-                messages = messages + ChatLine(false, answer)
-                status = "LLM response received"
-                speak(answer)
+                val response = LlmClient.replyWithTools(context, priorHistory, text)
+                messages = messages + ChatLine(false, response.text)
+                if (response.toolAction != null) {
+                    pendingAction = response.toolAction
+                    status = "AI requested a tool • awaiting your confirmation"
+                } else {
+                    status = "LLM response received"
+                    speak(response.text)
+                }
             } catch (error: Exception) {
                 val answer = "LLM မဖြေဆိုနိုင်ပါ။ ${error.message ?: "Connection error"}"
                 messages = messages + ChatLine(false, answer)
