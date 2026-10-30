@@ -341,7 +341,7 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
                         },
                         leadingIcon = {
                             if (whisperDownloading) CircularProgressIndicator(
-                                progress = { whisperDownloadProgress / 100f },
+                                progress = whisperDownloadProgress / 100f,
                                 modifier = Modifier.size(16.dp), strokeWidth = 2.dp
                             ) else Icon(Icons.Default.Mic, contentDescription = null)
                         }
