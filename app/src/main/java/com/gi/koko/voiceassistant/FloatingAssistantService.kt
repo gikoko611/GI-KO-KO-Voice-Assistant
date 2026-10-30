@@ -49,6 +49,10 @@ class FloatingAssistantService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
         if (!Settings.canDrawOverlays(this)) {
             stopSelf()
             return START_NOT_STICKY
@@ -214,6 +218,7 @@ class FloatingAssistantService : Service() {
         lp.x = dp(12)
         lp.y = dp(120)
         lp.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+        lp.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
         panel = root
         try {
             windowManager.addView(root, lp)
@@ -326,12 +331,16 @@ class FloatingAssistantService : Service() {
         val open = PendingIntent.getActivity(this, 0,
             packageManager.getLaunchIntentForPackage(packageName) ?: Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_IMMUTABLE else 0)
+        val stopIntent = Intent(this, FloatingAssistantService::class.java).setAction(ACTION_STOP)
+        val stopPending = PendingIntent.getService(this, 1, stopIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_IMMUTABLE else 0)
         return NotificationCompat.Builder(this, "gi_floating_assistant")
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentTitle("G.I KO KO Voice Assistant")
             .setContentText("Floating assistant is active • Tap G bubble to ask")
             .setContentIntent(open)
             .setOngoing(true)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop floating", stopPending)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }
@@ -347,4 +356,8 @@ class FloatingAssistantService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    companion object {
+        private const val ACTION_STOP = "com.gi.koko.voiceassistant.action.STOP_FLOATING"
+    }
 }
