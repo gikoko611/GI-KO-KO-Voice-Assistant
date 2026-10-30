@@ -93,10 +93,10 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
     var llmModel by remember { mutableStateOf(savedConfig.second) }
     var llmApiKey by remember { mutableStateOf(savedConfig.third) }
     val chatListState = rememberLazyListState()
-    LaunchedEffect(messages.size) { if (messages.isNotEmpty()) chatListState.animateScrollToItem(messages.lastIndex) }
     var messages by remember {
         mutableStateOf(listOf(ChatLine(false, "မင်္ဂလာပါ။ G.I KO KO Voice Assistant ပါ။\nModel ကို import လုပ်ပြီး voice သို့မဟုတ် text နဲ့ စတင်နိုင်ပါတယ်။")))
     }
+    LaunchedEffect(messages.size) { if (messages.isNotEmpty()) chatListState.animateScrollToItem(messages.lastIndex) }
 
     val modelPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri != null) {
