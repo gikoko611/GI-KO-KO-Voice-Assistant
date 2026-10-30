@@ -40,9 +40,6 @@ Offline AI text generation does not require an internet connection after the GGU
 Example Groq Base URL: https://api.groq.com/openai/v1.
 The model ID and API key must be obtained from the selected provider. No API key is bundled in the APK.
 
-## Offline capabilities and GGUF limitation
-The app works offline for its built-in calculator and local chat-history access. Android speech recognition may require an installed offline language pack. GGUF import is currently a file-selection feature only; native GGUF inference is not included in this ARMv7 release. Current upstream llama.cpp Android documentation demonstrates its NDK cross-build with arm64-v8a; a compatible and tested 32-bit ARMv7 inference library is not bundled here. Do not treat selecting a GGUF file as proof that local model inference works.
-
 ## Build and download
 Open Actions → Android CI and Release → latest successful run → Artifacts.
 - GI-KO-KO-Voice-Assistant-v0.3.0-offline-armv7 is the signed APK for direct installation.
