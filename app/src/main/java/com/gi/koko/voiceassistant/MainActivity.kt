@@ -87,6 +87,7 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
     var showHistory by remember { mutableStateOf(false) }
     var showLlmSettings by remember { mutableStateOf(false) }
     var llmBusy by remember { mutableStateOf(false) }
+    var llmTesting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val savedConfig = remember { LlmClient.loadConfig(context) }
     var llmBaseUrl by remember { mutableStateOf(savedConfig.first) }
@@ -94,8 +95,9 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
     var llmApiKey by remember { mutableStateOf(savedConfig.third) }
     val chatListState = rememberLazyListState()
     var messages by remember {
-        mutableStateOf(listOf(ChatLine(false, "မင်္ဂလာပါ။ G.I KO KO Voice Assistant ပါ။\nModel ကို import လုပ်ပြီး voice သို့မဟုတ် text နဲ့ စတင်နိုင်ပါတယ်။")))
+        mutableStateOf(ChatStore.load(context).ifEmpty { listOf(ChatLine(false, "မင်္ဂလာပါ။ G.I KO KO Voice Assistant ပါ။\nModel ကို import လုပ်ပြီး voice သို့မဟုတ် text နဲ့ စတင်နိုင်ပါတယ်။")) })
     }
+    LaunchedEffect(messages) { ChatStore.save(context, messages) }
     LaunchedEffect(messages.size) { if (messages.isNotEmpty()) chatListState.animateScrollToItem(messages.lastIndex) }
 
     val modelPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -207,13 +209,14 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
     fun sendMessage() {
         val text = prompt.trim()
         if (text.isEmpty() || llmBusy) return
-        messages = messages + ChatLine(true, text)
+        val priorHistory = messages.toList()
+        messages = priorHistory + ChatLine(true, text)
         prompt = ""
         llmBusy = true
         status = "Connecting to LLM…"
         scope.launch {
             try {
-                val answer = LlmClient.reply(context, messages.dropLast(1), text)
+                val answer = LlmClient.reply(context, priorHistory, text)
                 messages = messages + ChatLine(false, answer)
                 status = "LLM response received"
                 speak(answer)
@@ -238,7 +241,7 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showHistory = !showHistory }) {
+                    IconButton(onClick = { showHistory = true }) {
                         Icon(Icons.Default.History, contentDescription = "History", tint = Gold)
                     }
                     IconButton(onClick = { context.startActivity(Intent(context, SkillCenterActivity::class.java)) }) {
@@ -360,6 +363,27 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
                     color = Gold, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
             }
         }
+        if (showHistory) {
+            AlertDialog(
+                onDismissRequest = { showHistory = false },
+                title = { Text("CHAT HISTORY", color = Gold) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("${messages.size} messages saved on this device (maximum 200).", color = Color.White)
+                        Text("Conversation is restored automatically when the app is reopened.", color = Muted, fontSize = 12.sp)
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        messages = listOf(ChatLine(false, "မင်္ဂလာပါ။ G.I KO KO Voice Assistant ပါ။\nModel ကို import လုပ်ပြီး voice သို့မဟုတ် text နဲ့ စတင်နိုင်ပါတယ်။"))
+                        ChatStore.clear(context)
+                        showHistory = false
+                    }) { Text("CLEAR HISTORY", color = Gold) }
+                },
+                dismissButton = { TextButton(onClick = { showHistory = false }) { Text("CLOSE", color = Muted) } },
+                containerColor = Panel
+            )
+        }
         if (showLlmSettings) {
             AlertDialog(
                 onDismissRequest = { showLlmSettings = false },
@@ -371,6 +395,23 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
                         OutlinedTextField(value = llmModel, onValueChange = { llmModel = it }, label = { Text("Model ID") }, singleLine = true)
                         OutlinedTextField(value = llmApiKey, onValueChange = { llmApiKey = it }, label = { Text("API Key") }, singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
                         Text("Example: https://api.groq.com/openai/v1 • Model ID ကို provider မှရယူပါ။", color = Muted, fontSize = 11.sp)
+                        TextButton(
+                            enabled = !llmTesting,
+                            onClick = {
+                                try {
+                                    require(llmBaseUrl.startsWith("https://")) { "HTTPS Base URL သုံးပါ" }
+                                    require(llmModel.isNotBlank() && llmApiKey.isNotBlank()) { "Model ID နဲ့ API Key ထည့်ပါ" }
+                                    LlmClient.saveConfig(context, llmBaseUrl, llmModel, llmApiKey)
+                                    llmTesting = true
+                                    status = "Testing provider connection…"
+                                    scope.launch {
+                                        try { status = LlmClient.testConnection(context) }
+                                        catch (e: Exception) { status = "Connection test failed: ${e.message}" }
+                                        finally { llmTesting = false }
+                                    }
+                                } catch (e: Exception) { status = e.message ?: "Invalid settings" }
+                            }
+                        ) { Text(if (llmTesting) "TESTING…" else "TEST CONNECTION", color = Gold) }
                     }
                 },
                 confirmButton = {
