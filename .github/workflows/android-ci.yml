@@ -47,9 +47,9 @@ jobs:
 
       - name: Fetch llama.cpp native inference engine
         run: |
-          git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/ggml-org/llama.cpp.git third_party/llama.cpp
+          git clone --depth 1 --branch v0.6.0 --recurse-submodules --shallow-submodules https://github.com/ggml-org/llama.cpp.git third_party/llama.cpp
           test -f third_party/llama.cpp/CMakeLists.txt
-          git clone --depth 1 --branch v1.7.6 --recurse-submodules --shallow-submodules https://github.com/ggml-org/whisper.cpp.git third_party/whisper.cpp
+          git clone --depth 1 --branch v1.9.5 --recurse-submodules --shallow-submodules https://github.com/ggml-org/whisper.cpp.git third_party/whisper.cpp
           test -f third_party/whisper.cpp/CMakeLists.txt
 
       - name: Build debug APK
