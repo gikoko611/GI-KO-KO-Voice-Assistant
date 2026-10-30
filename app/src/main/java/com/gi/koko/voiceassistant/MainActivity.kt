@@ -6,9 +6,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
 import android.os.Bundle
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -153,14 +150,6 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
         } else {
             status = "Microphone permission is required for floating voice input"
         }
-    }
-
-    val speechRecognizer = remember {
-        if (SpeechRecognizer.isRecognitionAvailable(context)) SpeechRecognizer.createSpeechRecognizer(context) else null
-    }
-
-    DisposableEffect(speechRecognizer) {
-        onDispose { speechRecognizer?.destroy() }
     }
 
     fun startListening() {
