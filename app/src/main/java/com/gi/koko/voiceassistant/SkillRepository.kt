@@ -132,7 +132,7 @@ object SkillRepository {
     private fun parseHeader(content: String): Map<String, String> {
         val lines = content.lineSequence().take(40).toList()
         if (lines.firstOrNull()?.trim() != "---") return emptyMap()
-        val end = lines.indexOfFirst { it.trim() == "---" && lines.indexOf(it) > 0 }
+        val end = (1 until lines.size).firstOrNull { lines[it].trim() == "---" } ?: -1
         if (end < 0) return emptyMap()
         return lines.subList(1, end).mapNotNull { line ->
             val split = line.indexOf(':')
