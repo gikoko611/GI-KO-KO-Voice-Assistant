@@ -9,6 +9,8 @@ import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.IBinder
+import android.os.Bundle
+import android.speech.tts.TextToSpeech
 import android.provider.Settings
 import android.speech.*
 import android.view.*
