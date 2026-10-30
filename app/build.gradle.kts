@@ -53,6 +53,12 @@ android {
         }
     }
 
+    // Keep targetSdk 29 for the legacy Android 10 overlay behavior.
+    // This app is distributed as a direct-install APK, not through Google Play.
+    lint {
+        disable += "ExpiredTargetSdkVersion"
+    }
+
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
