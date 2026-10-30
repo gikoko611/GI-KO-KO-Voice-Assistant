@@ -276,8 +276,17 @@ class FloatingAssistantService : Service() {
         }
         Thread {
             val reply = runCatching {
-                runBlocking { LlmClient.reply(applicationContext, emptyList(), question) }
-            }.getOrElse { "LLM မဖြေဆိုနိုင်ပါ။ ${it.message ?: "Connection error"}" }
+                runBlocking {
+                    val prefs = getSharedPreferences("gi_voice_prefs", MODE_PRIVATE)
+                    if (prefs.getBoolean("offline_mode", false)) {
+                        val modelPath = prefs.getString("model_path", null)
+                            ?: throw IllegalStateException("Offline GGUF model မထည့်ရသေးပါ")
+                        OfflineLlmClient.reply(modelPath, emptyList(), question)
+                    } else {
+                        LlmClient.reply(applicationContext, emptyList(), question)
+                    }
+                }
+            }.getOrElse { "AI မဖြေဆိုနိုင်ပါ။ ${it.message ?: "Connection error"}" }
             Handler(Looper.getMainLooper()).post {
                 answerView?.text = reply
                 statusView?.text = if (reply.startsWith("LLM မဖြေဆိုနိုင်ပါ")) "LLM connection failed" else "LLM response ready"
@@ -321,6 +330,7 @@ class FloatingAssistantService : Service() {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, "my-MM")
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "my-MM")
+                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             }
             recognizer?.startListening(speechIntent)
