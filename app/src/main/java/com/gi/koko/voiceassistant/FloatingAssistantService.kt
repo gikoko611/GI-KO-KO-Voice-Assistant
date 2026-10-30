@@ -10,6 +10,9 @@ import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import kotlinx.coroutines.runBlocking
 import android.speech.tts.TextToSpeech
 import android.provider.Settings
 import android.speech.*
@@ -166,12 +169,19 @@ class FloatingAssistantService : Service() {
 
         answerView = TextView(this).apply {
             text = "မင်္ဂလာပါ။ ဘာကူညီပေးရမလဲ။"
-            textSize = 14f
+            textSize = 15f
             setTextColor(Color.WHITE)
-            setPadding(dp(10), dp(10), dp(10), dp(10))
+            setPadding(dp(12), dp(12), dp(12), dp(12))
             background = rounded(panelColor, dp(12).toFloat(), Color.DKGRAY)
+            textIsSelectable = true
         }
-        root.addView(answerView, LinearLayout.LayoutParams(-1, dp(92)))
+        val answerScroll = ScrollView(this).apply {
+            isFillViewport = true
+            isVerticalScrollBarEnabled = true
+            background = rounded(panelColor, dp(12).toFloat(), Color.DKGRAY)
+            addView(answerView, ScrollView.LayoutParams(-1, -2))
+        }
+        root.addView(answerScroll, LinearLayout.LayoutParams(-1, dp(230)))
 
         input = EditText(this).apply {
             hint = "မြန်မာ / English ဖြင့် ရိုက်မေးပါ…"
@@ -213,7 +223,8 @@ class FloatingAssistantService : Service() {
         }
         root.addView(foot)
 
-        val lp = params(dp(320), WindowManager.LayoutParams.WRAP_CONTENT)
+        val panelWidth = (resources.displayMetrics.widthPixels - dp(24)).coerceAtLeast(dp(260))
+        val lp = params(panelWidth, WindowManager.LayoutParams.WRAP_CONTENT)
         lp.x = dp(12)
         lp.y = dp(120)
         lp.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
@@ -253,20 +264,26 @@ class FloatingAssistantService : Service() {
             statusView?.text = "စာမေးခွန်း ရိုက်ထည့်ပါ"
             return
         }
-        val reply = when {
-            question.contains("မင်္ဂလာပါ") || question.equals("hello", true) ->
-                "မင်္ဂလာပါ။ G.I KO KO Voice Assistant ပါ။"
-            question.startsWith("calc:", true) -> {
-                try { "ရလဒ်: " + SafeToolEngine.calculate(question.substringAfter(":").trim()) }
-                catch (e: Exception) { "တွက်ချက်မှု မအောင်မြင်ပါ: ${e.message}" }
-            }
-            else ->
-                "မေးခွန်းကို လက်ခံရရှိပါပြီ။ Local Qwen inference engine မချိတ်ဆက်ရသေးတဲ့အတွက် AI အဖြေကို မထုတ်ပေးနိုင်သေးပါ။"
-        }
-        answerView?.text = reply
-        statusView?.text = "Text response ready"
-        speak(reply)
         input?.setText("")
+        statusView?.text = "LLM is thinking…"
+        if (question.startsWith("calc:", true)) {
+            val reply = try { "ရလဒ်: " + SafeToolEngine.calculate(question.substringAfter(":").trim()) }
+                catch (e: Exception) { "တွက်ချက်မှု မအောင်မြင်ပါ: ${e.message}" }
+            answerView?.text = reply
+            statusView?.text = "Calculator complete"
+            speak(reply)
+            return
+        }
+        Thread {
+            val reply = runCatching {
+                runBlocking { LlmClient.reply(applicationContext, emptyList(), question) }
+            }.getOrElse { "LLM မဖြေဆိုနိုင်ပါ။ ${it.message ?: "Connection error"}" }
+            Handler(Looper.getMainLooper()).post {
+                answerView?.text = reply
+                statusView?.text = if (reply.startsWith("LLM မဖြေဆိုနိုင်ပါ")) "LLM connection failed" else "LLM response ready"
+                if (!reply.startsWith("LLM မဖြေဆိုနိုင်ပါ")) speak(reply)
+            }
+        }.start()
     }
 
     private fun startVoiceInput() {
