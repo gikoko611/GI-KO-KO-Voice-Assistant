@@ -5,6 +5,7 @@
 #include <vector>
 #include <thread>
 #include <exception>
+#include <stdexcept>
 #include "llama.h"
 
 #define GI_LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "GIKOKO_LLAMA", __VA_ARGS__)
