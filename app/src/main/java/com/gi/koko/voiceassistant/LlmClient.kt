@@ -111,6 +111,76 @@ object LlmClient {
         } finally { connection.disconnect() }
     }
 
+
+    suspend fun replyWithTools(context: Context, history: List<ChatLine>, userText: String): AssistantReply =
+        withContext(Dispatchers.IO) {
+            val (base, model, key) = loadConfig(context)
+            require(key.isNotBlank()) { "LLM API Key မထည့်ရသေးပါ။ LLM Setup မှာ ထည့်ပါ။" }
+            val messages = JSONArray().put(JSONObject().put("role", "system").put("content",
+                "You are G.I KO KO, a careful bilingual voice assistant. Reply in the user's language. " +
+                "Use tools only when needed. Never claim a tool ran before the user confirms it. " +
+                "For app launching, ask for a package name if unclear."))
+            history.takeLast(20).forEach { line ->
+                messages.put(JSONObject().put("role", if (line.fromUser) "user" else "assistant").put("content", line.text))
+            }
+            messages.put(JSONObject().put("role", "user").put("content", userText))
+            val tools = JSONArray()
+            tools.put(tool("calculate", "Evaluate a basic arithmetic expression.", JSONObject()
+                .put("type", "object").put("properties", JSONObject().put("expression",
+                    JSONObject().put("type", "string").put("description", "Arithmetic expression, e.g. (12+4)*2")))
+                .put("required", JSONArray().put("expression")).put("additionalProperties", false)))
+            tools.put(tool("open_app", "Launch an installed Android app by its exact package name.", JSONObject()
+                .put("type", "object").put("properties", JSONObject().put("package_name",
+                    JSONObject().put("type", "string")))
+                .put("required", JSONArray().put("package_name")).put("additionalProperties", false)))
+            tools.put(tool("run_termux", "Run one harmless command from the restricted allowlist only.", JSONObject()
+                .put("type", "object").put("properties", JSONObject().put("command",
+                    JSONObject().put("type", "string").put("enum", JSONArray().put("pwd").put("ls").put("python --version"))))
+                .put("required", JSONArray().put("command")).put("additionalProperties", false)))
+            val body = JSONObject().put("model", model).put("messages", messages)
+                .put("temperature", 0.4).put("stream", false).put("tools", tools).put("tool_choice", "auto")
+            val connection = (URL(base.trimEnd('/') + "/chat/completions").openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"; connectTimeout = 20000; readTimeout = 60000; doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Authorization", "Bearer $key")
+            }
+            try {
+                connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                val code = connection.responseCode
+                val raw = (if (code in 200..299) connection.inputStream else connection.errorStream)
+                    ?.bufferedReader()?.use { it.readText() }.orEmpty()
+                if (code !in 200..299) {
+                    // Providers without function-calling support still receive a normal chat request.
+                    if (code == 400 || code == 404 || code == 422) {
+                        return@withContext AssistantReply(reply(context, history, userText), null)
+                    }
+                    val message = runCatching { JSONObject(raw).optJSONObject("error")?.optString("message") }.getOrNull()
+                    throw IllegalStateException("LLM API error ($code): ${message ?: raw.take(180)}")
+                }
+                val message = JSONObject(raw).optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")
+                    ?: throw IllegalStateException("LLM response format မမှန်ပါ")
+                val calls = message.optJSONArray("tool_calls")
+                if (calls != null && calls.length() > 0) {
+                    val call = calls.optJSONObject(0) ?: throw IllegalStateException("Tool call မမှန်ပါ")
+                    val function = call.optJSONObject("function") ?: throw IllegalStateException("Tool function မတွေ့ပါ")
+                    val args = JSONObject(function.optString("arguments", "{}"))
+                    val action = when (function.optString("name")) {
+                        "calculate" -> "calc: " + args.optString("expression")
+                        "open_app" -> "open: " + args.optString("package_name")
+                        "run_termux" -> "termux: " + args.optString("command")
+                        else -> throw IllegalArgumentException("Unsupported AI tool")
+                    }
+                    return@withContext AssistantReply("AI က ဒီလုပ်ဆောင်ချက်ကို တောင်းဆိုထားပါတယ်။ အတည်ပြုပြီးမှ လုပ်ဆောင်ပါမယ်။\n$action", action)
+                }
+                AssistantReply(message.optString("content").takeIf { it.isNotBlank() }
+                    ?: "AI က စာသားအဖြေ မပြန်လာပါ။", null)
+            } finally { connection.disconnect() }
+        }
+
+    private fun tool(name: String, description: String, parameters: JSONObject): JSONObject =
+        JSONObject().put("type", "function").put("function",
+            JSONObject().put("name", name).put("description", description).put("parameters", parameters))
+
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (store.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
