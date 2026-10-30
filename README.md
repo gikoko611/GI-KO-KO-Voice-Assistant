@@ -15,9 +15,11 @@ GitHub Actions builds a debug APK on push. Open **Actions → Android CI → lat
 - Spoken output through installed Android Text-to-Speech voices (Burmese voice availability depends on the device engine).
 - GGUF file import through Android Storage Access Framework.
 - Safe built-in tools with confirmation before execution.
+- Draggable always-on-top floating G bubble with expandable text + voice mini-panel (requires Android 'Display over other apps' permission).
+- Foreground notification with a Stop Floating action.
 - Termux hand-off is optional and requires Termux to be installed and explicitly enabled.
 
-The imported GGUF model is not bundled in the APK. A native inference backend is a separate integration step; this starter does not claim that model inference is already wired up.
+The imported GGUF model is not bundled in the APK. A native inference backend is a separate integration step; this starter does not claim that model inference is already wired up. The floating panel currently provides voice capture, text input, text display, TTS output, and a basic calculator route; it does not yet route questions through the GGUF model.
 
 ## Safety
 Destructive file operations and external command execution are not run automatically. Tool requests are validated and require user confirmation. The app does not require root or Accessibility permission.
