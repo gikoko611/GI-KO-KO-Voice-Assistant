@@ -49,7 +49,7 @@ Java_com_gi_koko_voiceassistant_NativeLlmBridge_nativeGenerate(
 
         llama_context_params ctxParams = llama_context_default_params();
         ctxParams.n_ctx = static_cast<uint32_t>(std::max(256, std::min(1024, static_cast<int>(contextSize))));
-        ctxParams.n_batch = 128;
+        ctxParams.n_batch = 512;
         ctxParams.n_ubatch = 128;
         const int cpuThreads = std::max(1, std::min(4, static_cast<int>(threads)));
         ctxParams.n_threads = cpuThreads;
