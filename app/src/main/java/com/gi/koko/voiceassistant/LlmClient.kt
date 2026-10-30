@@ -16,6 +16,8 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
+data class AssistantReply(val text: String, val toolAction: String?)
+
 object LlmClient {
     private const val PREFS = "gi_voice_prefs"
     private const val KEY_ALIAS = "gi_voice_llm_key"
