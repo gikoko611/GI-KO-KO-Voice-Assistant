@@ -1,8 +1,9 @@
-name: Android CI
+name: Android CI and Release
 
 on:
   push:
     branches: [ main ]
+    tags: [ 'v*' ]
   workflow_dispatch:
 
 permissions:
@@ -10,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    name: Build ARMv7 APK
+    name: Build ARMv7 APKs
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -47,10 +48,21 @@ jobs:
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
 
-      - name: Upload APK
+      - name: Build signed release APK
+        run: gradle --no-daemon :app:assembleRelease
+
+      - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: GI-KO-KO-Voice-Assistant-debug-armv7
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: GI-KO-KO-Voice-Assistant-v0.2.0-release-armv7
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 30
