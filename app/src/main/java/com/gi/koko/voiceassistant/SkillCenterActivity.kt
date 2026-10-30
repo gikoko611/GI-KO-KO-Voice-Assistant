@@ -6,11 +6,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -27,13 +28,16 @@ private val SkillPanel = Color(0xFF171B27)
 class SkillCenterActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { SkillCenterScreen() }
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() { finish() }
+        })
+        setContent { SkillCenterScreen(onBack = { finish() }) }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SkillCenterScreen() {
+private fun SkillCenterScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     var refresh by remember { mutableIntStateOf(0) }
     var message by remember { mutableStateOf("8 built-in skills • Custom SKILL.md supported") }
@@ -63,8 +67,17 @@ private fun SkillCenterScreen() {
     MaterialTheme(colorScheme = darkColorScheme(primary = SkillGold, background = SkillDark, surface = SkillPanel)) {
         Scaffold(
             containerColor = SkillDark,
-            topBar = { TopAppBar(title = { Text("SKILL CENTER", color = SkillGold, fontWeight = FontWeight.Black) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = SkillDark)) }
+            topBar = {
+                TopAppBar(
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = SkillGold)
+                        }
+                    },
+                    title = { Text("SKILL CENTER", color = SkillGold, fontWeight = FontWeight.Black) },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = SkillDark)
+                )
+            }
         ) { padding ->
             Column(Modifier.fillMaxSize().padding(padding).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("G.I KO KO • PRO SKILL PACK", color = SkillGold, fontWeight = FontWeight.Bold)
