@@ -30,7 +30,7 @@ jobs:
 
       - name: Install Android SDK packages
         run: |
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -44,6 +44,11 @@ jobs:
             mkdir -p "app/src/main/res/mipmap-$density"
             curl -fL "https://raw.githubusercontent.com/gikoko611/G-Ikoko-Manager/main/app/src/main/res/mipmap-$density/ic_launcher.png" -o "app/src/main/res/mipmap-$density/ic_launcher.png"
           done
+
+      - name: Fetch llama.cpp native inference engine
+        run: |
+          git clone --depth 1 https://github.com/ggml-org/llama.cpp.git third_party/llama.cpp
+          test -f third_party/llama.cpp/CMakeLists.txt
 
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
@@ -62,7 +67,7 @@ jobs:
       - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
-          name: GI-KO-KO-Voice-Assistant-v0.2.0-release-armv7
+          name: GI-KO-KO-Voice-Assistant-v0.3.0-offline-armv7
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 30
