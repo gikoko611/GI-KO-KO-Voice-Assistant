@@ -12,8 +12,8 @@ android {
         applicationId = "com.gi.koko.voiceassistant"
         minSdk = 23
         targetSdk = 29
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
         ndk {
             abiFilters += listOf("armeabi-v7a")
         }
@@ -25,6 +25,8 @@ android {
             versionNameSuffix = "-debug"
         }
         release {
+            // CI-signed for direct APK installation. Replace with a private upload key before Play Store publishing.
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
