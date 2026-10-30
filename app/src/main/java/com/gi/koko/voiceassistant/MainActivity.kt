@@ -227,7 +227,7 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
                     IconButton(onClick = { showHistory = !showHistory }) {
                         Icon(Icons.Default.History, contentDescription = "History", tint = Gold)
                     }
-                    IconButton(onClick = { status = "Settings • Offline voice and model options" }) {
+                    IconButton(onClick = { context.startActivity(Intent(context, SkillCenterActivity::class.java)) }) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Gold)
                     }
                 },
