@@ -31,6 +31,7 @@ import androidx.compose.material3.*
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -83,6 +84,13 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
     var pendingAction by remember { mutableStateOf<String?>(null) }
     var toolRequest by remember { mutableStateOf("calc: 12 * (3 + 4)") }
     var showHistory by remember { mutableStateOf(false) }
+    var showLlmSettings by remember { mutableStateOf(false) }
+    var llmBusy by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val savedConfig = remember { LlmClient.loadConfig(context) }
+    var llmBaseUrl by remember { mutableStateOf(savedConfig.first) }
+    var llmModel by remember { mutableStateOf(savedConfig.second) }
+    var llmApiKey by remember { mutableStateOf(savedConfig.third) }
     var messages by remember {
         mutableStateOf(listOf(ChatLine(false, "မင်္ဂလာပါ။ G.I KO KO Voice Assistant ပါ။\nModel ကို import လုပ်ပြီး voice သို့မဟုတ် text နဲ့ စတင်နိုင်ပါတယ်။")))
     }
@@ -94,7 +102,7 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
             } catch (_: Exception) { }
             selectedModel = uri.toString()
             prefs.edit().putString("model_uri", uri.toString()).apply()
-            status = "GGUF model selected • inference backend not connected yet"
+            status = "GGUF file selected • Local inference backend is not installed in this ARMv7 build"
         }
     }
 
@@ -195,20 +203,23 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
 
     fun sendMessage() {
         val text = prompt.trim()
-        if (text.isEmpty()) return
+        if (text.isEmpty() || llmBusy) return
         messages = messages + ChatLine(true, text)
         prompt = ""
-        val answer = when {
-            text.equals("hello", true) || text.contains("မင်္ဂလာပါ") ->
-                "မင်္ဂလာပါ။ ဘာကူညီပေးရမလဲ။"
-            text.contains("calculator", true) || text.startsWith("calc ", true) ->
-                "Calculator tool ကို Tools panel မှာ ဖွင့်ပြီး expression ထည့်ပါ။"
-            else ->
-                "သင့်မေးခွန်းကို လက်ခံရရှိပါပြီ။ GGUF model ကို ရွေးထားပေမယ့် local LLM inference engine ကို ဒီ build မှာ မချိတ်ဆက်ရသေးပါ။ ယခု UI, voice capture, TTS နှင့် safe tools ကို စမ်းသပ်နိုင်ပါတယ်။"
+        llmBusy = true
+        status = "Connecting to LLM…"
+        scope.launch {
+            try {
+                val answer = LlmClient.reply(context, messages.dropLast(1), text)
+                messages = messages + ChatLine(false, answer)
+                status = "LLM response received"
+                speak(answer)
+            } catch (error: Exception) {
+                val answer = "LLM မဖြေဆိုနိုင်ပါ။ ${error.message ?: "Connection error"}"
+                messages = messages + ChatLine(false, answer)
+                status = "LLM connection failed"
+            } finally { llmBusy = false }
         }
-        messages = messages + ChatLine(false, answer)
-        status = "Ready • Local model engine pending"
-        speak(answer)
     }
 
     MaterialTheme(colorScheme = darkColorScheme(
@@ -239,7 +250,7 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Box(
-                    Modifier.fillMaxWidth().height(148.dp)
+                    Modifier.fillMaxWidth().height(104.dp)
                         .background(Brush.radialGradient(listOf(Color(0xFF5B4218), Panel, Dark)), RoundedCornerShape(22.dp)),
                     contentAlignment = Alignment.Center
                 ) {
@@ -260,9 +271,10 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     AssistChip(onClick = { modelPicker.launch(arrayOf("*/*")) }, label = {
-                        Text(if (selectedModel == null) "Import GGUF" else "Model selected")
+                        Text(if (selectedModel == null) "Import GGUF" else "GGUF selected")
                     }, leadingIcon = { Icon(Icons.Default.AttachFile, null) })
                     AssistChip(onClick = { filePicker.launch(arrayOf("*/*")) }, label = { Text("Attach file") })
+                    AssistChip(onClick = { showLlmSettings = true }, label = { Text("LLM Setup") })
                 }
 
                 AssistChip(
@@ -302,8 +314,6 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
                         Text("Run")
                     }
                 }
-                Text("Allowed: calculator • launch app • Termux pwd / ls / python --version",
-                    color = Muted, fontSize = 10.sp)
                 Text("CONVERSATION", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
                 LazyColumn(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -315,7 +325,7 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
                             Surface(
                                 color = if (line.fromUser) Color(0xFF3B301C) else Panel,
                                 shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier.widthIn(max = 310.dp)
+                                modifier = Modifier.fillMaxWidth(0.90f)
                             ) {
                                 Text(line.text, Modifier.padding(12.dp), color = Color.White, fontSize = 14.sp)
                             }
@@ -337,13 +347,42 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
                     IconButton(onClick = { if (listening) speechRecognizer?.stopListening() else startListening() }) {
                         Icon(if (listening) Icons.Default.Stop else Icons.Default.Mic, null, tint = Gold)
                     }
-                    IconButton(onClick = { sendMessage() }) {
-                        Icon(Icons.Default.Send, null, tint = Gold)
+                    IconButton(onClick = { sendMessage() }, enabled = !llmBusy) {
+                        if (llmBusy) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Gold, strokeWidth = 2.dp)
+                        else Icon(Icons.Default.Send, null, tint = Gold)
                     }
                 }
                 Text("Powered By I KO KO", Modifier.align(Alignment.CenterHorizontally).padding(bottom = 8.dp),
                     color = Gold, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
             }
+        }
+        if (showLlmSettings) {
+            AlertDialog(
+                onDismissRequest = { showLlmSettings = false },
+                title = { Text("LLM CONNECTION", color = Gold) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("OpenAI-compatible API • API key ကို Android Keystore ဖြင့် encrypt လုပ်သိမ်းထားသည်။", color = Muted, fontSize = 12.sp)
+                        OutlinedTextField(value = llmBaseUrl, onValueChange = { llmBaseUrl = it }, label = { Text("Base URL") }, singleLine = true)
+                        OutlinedTextField(value = llmModel, onValueChange = { llmModel = it }, label = { Text("Model ID") }, singleLine = true)
+                        OutlinedTextField(value = llmApiKey, onValueChange = { llmApiKey = it }, label = { Text("API Key") }, singleLine = true)
+                        Text("Example: https://api.groq.com/openai/v1 • Model ID ကို provider မှရယူပါ။", color = Muted, fontSize = 11.sp)
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        try {
+                            require(llmBaseUrl.startsWith("https://")) { "HTTPS Base URL သုံးပါ" }
+                            require(llmModel.isNotBlank()) { "Model ID ထည့်ပါ" }
+                            LlmClient.saveConfig(context, llmBaseUrl, llmModel, llmApiKey)
+                            showLlmSettings = false
+                            status = "LLM settings saved securely"
+                        } catch (e: Exception) { status = e.message ?: "Invalid settings" }
+                    }) { Text("SAVE", color = Gold) }
+                },
+                dismissButton = { TextButton(onClick = { showLlmSettings = false }) { Text("CANCEL", color = Muted) } },
+                containerColor = Panel
+            )
         }
         if (pendingAction != null) {
             AlertDialog(
