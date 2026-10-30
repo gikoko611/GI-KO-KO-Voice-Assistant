@@ -238,7 +238,7 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
                     pendingAction = response.toolAction
                     status = "AI requested a tool • awaiting your confirmation"
                 } else {
-                    status = "LLM response received"
+                    status = if (offlineMode) "Local model response received" else "LLM response received"
                     speak(response.text)
                 }
             } catch (error: Exception) {
