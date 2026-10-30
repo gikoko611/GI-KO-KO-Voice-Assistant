@@ -47,8 +47,10 @@ jobs:
 
       - name: Fetch llama.cpp native inference engine
         run: |
-          git clone --depth 1 https://github.com/ggml-org/llama.cpp.git third_party/llama.cpp
+          git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/ggml-org/llama.cpp.git third_party/llama.cpp
           test -f third_party/llama.cpp/CMakeLists.txt
+          git clone --depth 1 --branch v1.7.6 --recurse-submodules --shallow-submodules https://github.com/ggml-org/whisper.cpp.git third_party/whisper.cpp
+          test -f third_party/whisper.cpp/CMakeLists.txt
 
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
@@ -62,7 +64,8 @@ jobs:
           APK="$(find app/build/outputs/apk/release -name '*.apk' -type f | head -n 1)"
           test -n "$APK"
           unzip -l "$APK" | grep -q 'lib/armeabi-v7a/libgi_llama.so'
-          echo "Verified ARMv7 llama.cpp native library: $APK"
+          unzip -l "$APK" | grep -q 'lib/armeabi-v7a/libgi_whisper.so'
+          echo "Verified ARMv7 llama.cpp + whisper.cpp native libraries: $APK"
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
@@ -75,7 +78,7 @@ jobs:
       - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
-          name: GI-KO-KO-Voice-Assistant-v0.3.0-offline-armv7
+          name: GI-KO-KO-Voice-Assistant-v0.4.0-whisper-burmese-armv7
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 30
