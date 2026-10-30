@@ -173,13 +173,13 @@ class FloatingAssistantService : Service() {
             setTextColor(Color.WHITE)
             setPadding(dp(12), dp(12), dp(12), dp(12))
             background = rounded(panelColor, dp(12).toFloat(), Color.DKGRAY)
-            textIsSelectable = true
+            setTextIsSelectable(true)
         }
         val answerScroll = ScrollView(this).apply {
             isFillViewport = true
             isVerticalScrollBarEnabled = true
             background = rounded(panelColor, dp(12).toFloat(), Color.DKGRAY)
-            addView(answerView, ScrollView.LayoutParams(-1, -2))
+            addView(answerView, android.widget.FrameLayout.LayoutParams(-1, -2))
         }
         root.addView(answerScroll, LinearLayout.LayoutParams(-1, dp(230)))
 
