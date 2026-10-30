@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.provider.Settings
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -108,6 +109,21 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
     val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) status = "Microphone permission granted. Tap MIC again to start."
         else status = "Microphone permission denied"
+    }
+
+    val floatingMicPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            if (Settings.canDrawOverlays(context)) {
+                ContextCompat.startForegroundService(context, Intent(context, FloatingAssistantService::class.java))
+                status = "Floating Assistant started"
+            } else {
+                context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:${context.packageName}")))
+                status = "Allow display over other apps, then tap Enable Floating again"
+            }
+        } else {
+            status = "Microphone permission is required for floating voice input"
+        }
     }
 
     val speechRecognizer = remember {
@@ -248,6 +264,27 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
                     }, leadingIcon = { Icon(Icons.Default.AttachFile, null) })
                     AssistChip(onClick = { filePicker.launch(arrayOf("*/*")) }, label = { Text("Attach file") })
                 }
+
+                AssistChip(
+                    onClick = {
+                        when {
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED ->
+                                floatingMicPermission.launch(Manifest.permission.RECORD_AUDIO)
+                            !Settings.canDrawOverlays(context) -> {
+                                context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    Uri.parse("package:${context.packageName}")))
+                                status = "Allow display over other apps, then tap Enable Floating again"
+                            }
+                            else -> {
+                                ContextCompat.startForegroundService(context,
+                                    Intent(context, FloatingAssistantService::class.java))
+                                status = "Floating Assistant active • Tap the G bubble over any app"
+                            }
+                        }
+                    },
+                    label = { Text(if (Settings.canDrawOverlays(context)) "Enable Floating Assistant" else "Grant Floating Permission") },
+                    leadingIcon = { Icon(Icons.Default.Mic, contentDescription = null) }
+                )
 
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
