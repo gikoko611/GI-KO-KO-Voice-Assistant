@@ -9,7 +9,7 @@ import java.io.File
 import java.io.FileOutputStream
 
 object OfflineModelStore {
-    private const val MAX_MODEL_BYTES = 1_200_000_000L
+    private const val MAX_MODEL_BYTES = 700_000_000L
 
     suspend fun importModel(context: Context, uri: Uri): File = withContext(Dispatchers.IO) {
         val folder = File(context.filesDir, "offline_models")
@@ -34,7 +34,7 @@ object OfflineModelStore {
                         if (count < 0) break
                         total += count
                         require(total <= MAX_MODEL_BYTES) {
-                            "ARMv7 ဖုန်းအတွက် model ဖိုင် 1.2 GB ထက်မကြီးစေရပါ"
+                            "ARMv7 ဖုန်းအတွက် model ဖိုင် 700 MB ထက်မကြီးစေရပါ"
                         }
                         output.write(buffer, 0, count)
                     }
