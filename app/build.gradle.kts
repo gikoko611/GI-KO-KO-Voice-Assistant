@@ -12,8 +12,8 @@ android {
         applicationId = "com.gi.koko.voiceassistant"
         minSdk = 23
         targetSdk = 29
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
         ndk {
             abiFilters += listOf("armeabi-v7a")
         }
@@ -45,6 +45,13 @@ android {
     buildFeatures {
         compose = true
     }
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
+
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
