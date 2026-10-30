@@ -41,10 +41,7 @@ class FloatingAssistantService : Service() {
         startForeground(7301, notification())
         tts = TextToSpeech(this) { result ->
             if (result == TextToSpeech.SUCCESS) {
-                val my = tts?.setLanguage(Locale("my", "MM"))
-                if (my == TextToSpeech.LANG_MISSING_DATA || my == TextToSpeech.LANG_NOT_SUPPORTED) {
-                    tts?.setLanguage(Locale.US)
-                }
+                tts?.language = Locale.US
             }
         }
         showBubble()
