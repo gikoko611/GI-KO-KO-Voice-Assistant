@@ -18,6 +18,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -91,6 +92,8 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
     var llmBaseUrl by remember { mutableStateOf(savedConfig.first) }
     var llmModel by remember { mutableStateOf(savedConfig.second) }
     var llmApiKey by remember { mutableStateOf(savedConfig.third) }
+    val chatListState = rememberLazyListState()
+    LaunchedEffect(messages.size) { if (messages.isNotEmpty()) chatListState.animateScrollToItem(messages.lastIndex) }
     var messages by remember {
         mutableStateOf(listOf(ChatLine(false, "မင်္ဂလာပါ။ G.I KO KO Voice Assistant ပါ။\nModel ကို import လုပ်ပြီး voice သို့မဟုတ် text နဲ့ စတင်နိုင်ပါတယ်။")))
     }
@@ -316,7 +319,8 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
                 }
                 Text("CONVERSATION", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
                 LazyColumn(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    state = chatListState,
+                    modifier = Modifier.weight(1f).fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(messages) { line ->
@@ -365,7 +369,7 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
                         Text("OpenAI-compatible API • API key ကို Android Keystore ဖြင့် encrypt လုပ်သိမ်းထားသည်။", color = Muted, fontSize = 12.sp)
                         OutlinedTextField(value = llmBaseUrl, onValueChange = { llmBaseUrl = it }, label = { Text("Base URL") }, singleLine = true)
                         OutlinedTextField(value = llmModel, onValueChange = { llmModel = it }, label = { Text("Model ID") }, singleLine = true)
-                        OutlinedTextField(value = llmApiKey, onValueChange = { llmApiKey = it }, label = { Text("API Key") }, singleLine = true)
+                        OutlinedTextField(value = llmApiKey, onValueChange = { llmApiKey = it }, label = { Text("API Key") }, singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
                         Text("Example: https://api.groq.com/openai/v1 • Model ID ကို provider မှရယူပါ။", color = Muted, fontSize = 11.sp)
                     }
                 },
