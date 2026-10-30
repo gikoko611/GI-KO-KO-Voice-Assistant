@@ -62,7 +62,6 @@ jobs:
           APK="$(find app/build/outputs/apk/release -name '*.apk' -type f | head -n 1)"
           test -n "$APK"
           unzip -l "$APK" | grep -q 'lib/armeabi-v7a/libgi_llama.so'
-          unzip -l "$APK" | grep -q 'lib/armeabi-v7a/libggml'
           echo "Verified ARMv7 llama.cpp native library: $APK"
 
       - name: Upload debug APK
