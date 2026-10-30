@@ -7,6 +7,7 @@ plugins {
 android {
     namespace = "com.gi.koko.voiceassistant"
     compileSdk = 35
+    ndkVersion = "27.2.12479018"
 
     defaultConfig {
         applicationId = "com.gi.koko.voiceassistant"
