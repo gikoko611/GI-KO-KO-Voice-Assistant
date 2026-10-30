@@ -81,7 +81,8 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
     var prompt by remember { mutableStateOf("") }
     var listening by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("Ready • Offline-first interface") }
-    var selectedModel by remember { mutableStateOf(prefs.getString("model_uri", null)) }
+    var modelPath by remember { mutableStateOf(prefs.getString("model_path", null)) }
+    var offlineMode by remember { mutableStateOf(prefs.getBoolean("offline_mode", false)) }
     var pendingAction by remember { mutableStateOf<String?>(null) }
     var toolRequest by remember { mutableStateOf("calc: 12 * (3 + 4)") }
     var showHistory by remember { mutableStateOf(false) }
@@ -105,9 +106,18 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
             try {
                 context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             } catch (_: Exception) { }
-            selectedModel = uri.toString()
-            prefs.edit().putString("model_uri", uri.toString()).apply()
-            status = "GGUF file selected • Local inference backend is not installed in this ARMv7 build"
+            scope.launch {
+                status = "Importing GGUF into app storage…"
+                try {
+                    val imported = OfflineModelStore.importModel(context, uri)
+                    modelPath = imported.absolutePath
+                    prefs.edit().putString("model_path", imported.absolutePath)
+                        .putString("model_uri", uri.toString()).apply()
+                    status = "GGUF imported • Offline AI ready"
+                } catch (error: Exception) {
+                    status = "Model import failed: ${error.message ?: "unknown error"}"
+                }
+            }
         }
     }
 
@@ -161,6 +171,7 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "my-MM")
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "my-MM")
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
         }
         recognizer.setRecognitionListener(object : RecognitionListener {
@@ -213,10 +224,15 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
         messages = priorHistory + ChatLine(true, text)
         prompt = ""
         llmBusy = true
-        status = "Connecting to LLM…"
+        status = if (offlineMode) "Running local GGUF model…" else "Connecting to online LLM…"
         scope.launch {
             try {
-                val response = LlmClient.replyWithTools(context, priorHistory, text)
+                val response = if (offlineMode) {
+                    val path = modelPath ?: throw IllegalStateException("Offline GGUF model မထည့်ရသေးပါ။ Import GGUF ကိုနှိပ်ပါ။")
+                    AssistantReply(OfflineLlmClient.reply(path, priorHistory, text), null)
+                } else {
+                    LlmClient.replyWithTools(context, priorHistory, text)
+                }
                 messages = messages + ChatLine(false, response.text)
                 if (response.toolAction != null) {
                     pendingAction = response.toolAction
@@ -226,9 +242,9 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
                     speak(response.text)
                 }
             } catch (error: Exception) {
-                val answer = "LLM မဖြေဆိုနိုင်ပါ။ ${error.message ?: "Connection error"}"
+                val answer = "AI မဖြေဆိုနိုင်ပါ။ ${error.message ?: "Connection error"}"
                 messages = messages + ChatLine(false, answer)
-                status = "LLM connection failed"
+                status = if (offlineMode) "Offline inference failed" else "LLM connection failed"
             } finally { llmBusy = false }
         }
     }
@@ -281,9 +297,17 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    AssistChip(onClick = { modelPicker.launch(arrayOf("*/*")) }, label = {
-                        Text(if (selectedModel == null) "Import GGUF" else "GGUF selected")
+                    AssistChip(onClick = { modelPicker.launch(arrayOf("application/octet-stream", "*/*")) }, label = {
+                        Text(if (modelPath == null) "Import GGUF" else "GGUF Ready")
                     }, leadingIcon = { Icon(Icons.Default.AttachFile, null) })
+                    AssistChip(onClick = {
+                        offlineMode = !offlineMode
+                        prefs.edit().putBoolean("offline_mode", offlineMode).apply()
+                        status = if (offlineMode) {
+                            if (modelPath == null) "Offline mode enabled • Import a GGUF model first"
+                            else "Offline mode enabled • Internet is not used for AI replies"
+                        } else "Online LLM mode enabled"
+                    }, label = { Text(if (offlineMode) "OFFLINE ON" else "ONLINE MODE") })
                     AssistChip(onClick = { filePicker.launch(arrayOf("*/*")) }, label = { Text("Attach file") })
                     AssistChip(onClick = { showLlmSettings = true }, label = { Text("LLM Setup") })
                 }
