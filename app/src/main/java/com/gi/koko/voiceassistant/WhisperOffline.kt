@@ -114,19 +114,20 @@ object WhisperAudioRecorder {
             try {
                 require(recorder.state == AudioRecord.STATE_INITIALIZED) { "Microphone ကို စတင်မရပါ" }
                 recorder.startRecording()
-                val output = ArrayList<Float>(sampleRate * (durationMs / 1000))
+                val output = FloatArray(sampleRate * (durationMs / 1000) + sampleRate)
+                var written = 0
                 val buffer = ShortArray(4096)
                 val deadline = SystemClock.elapsedRealtime() + durationMs
-                while (SystemClock.elapsedRealtime() < deadline) {
-                    val count = recorder.read(buffer, 0, buffer.size)
+                while (SystemClock.elapsedRealtime() < deadline && written < output.size) {
+                    val count = recorder.read(buffer, 0, minOf(buffer.size, output.size - written))
                     if (count > 0) {
-                        for (i in 0 until count) output.add(buffer[i] / 32768.0f)
+                        for (i in 0 until count) output[written++] = buffer[i] / 32768.0f
                     } else if (count < 0) {
                         throw IllegalStateException("Microphone audio read error: $count")
                     }
                 }
-                require(output.size >= sampleRate / 2) { "အသံမရရှိပါ။ Microphone ကို စစ်ဆေးပါ" }
-                output.toFloatArray()
+                require(written >= sampleRate / 2) { "အသံမရရှိပါ။ Microphone ကို စစ်ဆေးပါ" }
+                output.copyOf(written)
             } finally {
                 try { if (recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING) recorder.stop() } catch (_: Exception) {}
                 recorder.release()
