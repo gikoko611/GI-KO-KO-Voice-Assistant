@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import java.util.Locale
+import java.io.File
 
 private val Gold = Color(0xFFFFC857)
 private val Dark = Color(0xFF090B12)
@@ -82,6 +83,11 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
     var listening by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("Ready • Offline-first interface") }
     var modelPath by remember { mutableStateOf(prefs.getString("model_path", null)) }
+    var whisperModelPath by remember {
+        mutableStateOf(prefs.getString("whisper_model_path", null)?.takeIf { File(it).exists() })
+    }
+    var whisperDownloading by remember { mutableStateOf(false) }
+    var whisperDownloadProgress by remember { mutableIntStateOf(0) }
     var offlineMode by remember { mutableStateOf(prefs.getBoolean("offline_mode", false)) }
     var pendingAction by remember { mutableStateOf<String?>(null) }
     var toolRequest by remember { mutableStateOf("calc: 12 * (3 + 4)") }
@@ -162,38 +168,27 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
             micPermission.launch(Manifest.permission.RECORD_AUDIO)
             return
         }
-        val recognizer = speechRecognizer
-        if (recognizer == null) {
-            status = "Speech recognition service unavailable on this device"
+        val path = whisperModelPath
+        if (path.isNullOrBlank() || !File(path).exists()) {
+            status = "မြန်မာ Offline Voice သုံးရန် Whisper Tiny Model ကို အရင် Download လုပ်ပါ"
             return
         }
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "my-MM")
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "my-MM")
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-        }
-        recognizer.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) { listening = true; status = "Listening…" }
-            override fun onBeginningOfSpeech() { }
-            override fun onRmsChanged(rmsdB: Float) { }
-            override fun onBufferReceived(buffer: ByteArray?) { }
-            override fun onEndOfSpeech() { listening = false; status = "Processing speech…" }
-            override fun onError(error: Int) { listening = false; status = "Speech error ($error) • Check installed language packs" }
-            override fun onResults(results: Bundle?) {
+        if (listening) return
+        listening = true
+        status = "အသံဖမ်းနေသည် • 10 seconds အတွင်း ပြောပါ"
+        scope.launch {
+            try {
+                val audio = WhisperAudioRecorder.record(context, 10_000)
+                status = "Whisper Tiny ဖြင့် မြန်မာအသံကို စာသားပြောင်းနေသည်…"
+                val spoken = NativeWhisperBridge.transcribe(path, audio)
+                prompt = spoken
+                status = if (spoken.isBlank()) "အသံမှ စာသားမရပါ • ထပ်ပြောကြည့်ပါ" else "မြန်မာအသံကို စာသားပြောင်းပြီးပါပြီ"
+            } catch (error: Exception) {
+                status = "Whisper STT မအောင်မြင်ပါ: ${error.message ?: "unknown error"}"
+            } finally {
                 listening = false
-                val spoken = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
-                if (spoken.isNotBlank()) prompt = spoken
-                status = if (spoken.isBlank()) "No speech detected" else "Speech captured"
             }
-            override fun onPartialResults(partialResults: Bundle?) {
-                val partial = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-                if (!partial.isNullOrBlank()) prompt = partial
-            }
-            override fun onEvent(eventType: Int, params: Bundle?) { }
-        })
-        recognizer.startListening(intent)
+        }
     }
 
     fun runConfirmedTool(action: String) {
@@ -312,6 +307,51 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
                     AssistChip(onClick = { showLlmSettings = true }, label = { Text("LLM Setup") })
                 }
 
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    AssistChip(
+                        onClick = {
+                            if (whisperDownloading) return@AssistChip
+                            if (whisperModelPath != null && File(whisperModelPath!!).exists()) {
+                                status = "Whisper Tiny • မြန်မာ Offline Speech Ready"
+                            } else {
+                                whisperDownloading = true
+                                whisperDownloadProgress = 0
+                                status = "Whisper Tiny Model ဒေါင်းလုဒ်စတင်နေသည်…"
+                                scope.launch {
+                                    try {
+                                        val downloaded = WhisperModelStore.download(context) { whisperDownloadProgress = it }
+                                        whisperModelPath = downloaded.absolutePath
+                                        prefs.edit().putString("whisper_model_path", downloaded.absolutePath).apply()
+                                        status = "Whisper Tiny installed • မြန်မာ Offline Voice Ready"
+                                    } catch (error: Exception) {
+                                        status = "Whisper download မအောင်မြင်ပါ: ${error.message ?: "network error"}"
+                                    } finally {
+                                        whisperDownloading = false
+                                    }
+                                }
+                            }
+                        },
+                        enabled = !whisperDownloading,
+                        label = {
+                            Text(when {
+                                whisperDownloading -> "Whisper ${whisperDownloadProgress}%"
+                                whisperModelPath != null -> "Whisper Ready"
+                                else -> "Download Burmese STT"
+                            })
+                        },
+                        leadingIcon = {
+                            if (whisperDownloading) CircularProgressIndicator(
+                                progress = { whisperDownloadProgress / 100f },
+                                modifier = Modifier.size(16.dp), strokeWidth = 2.dp
+                            ) else Icon(Icons.Default.Mic, contentDescription = null)
+                        }
+                    )
+                    AssistChip(
+                        onClick = { status = "Whisper Tiny multilingual • Burmese • Offline • 10-second voice capture" },
+                        label = { Text("MYANMAR OFFLINE STT") }
+                    )
+                }
+
                 AssistChip(
                     onClick = {
                         when {
@@ -380,8 +420,9 @@ private fun VoiceAssistantScreen(speak: (String) -> Unit) {
                             focusedTextColor = Color.White, unfocusedTextColor = Color.White
                         )
                     )
-                    IconButton(onClick = { if (listening) speechRecognizer?.stopListening() else startListening() }) {
-                        Icon(if (listening) Icons.Default.Stop else Icons.Default.Mic, null, tint = Gold)
+                    IconButton(onClick = { if (!listening) startListening() }, enabled = !listening) {
+                        if (listening) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Gold, strokeWidth = 2.dp)
+                        else Icon(Icons.Default.Mic, null, tint = Gold)
                     }
                     IconButton(onClick = { sendMessage() }, enabled = !llmBusy) {
                         if (llmBusy) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Gold, strokeWidth = 2.dp)
